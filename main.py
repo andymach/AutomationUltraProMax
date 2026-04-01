@@ -1,10 +1,12 @@
 import streamlit as st
 import os
 import time
+import random
 from playwright.sync_api import sync_playwright
+from playwright_stealth import stealth_sync
 
 # -------------------------------
-# 🔹 Ensure Playwright browser is installed
+# 🔹 Install Chromium if needed
 # -------------------------------
 PLAYWRIGHT_PATH = "/home/appuser/.cache/ms-playwright"
 
@@ -12,7 +14,7 @@ if not os.path.exists(PLAYWRIGHT_PATH):
     os.system("playwright install chromium")
 
 # -------------------------------
-# 🔹 Session State Setup
+# 🔹 Session State
 # -------------------------------
 if "browser_started" not in st.session_state:
     st.session_state.browser_started = False
@@ -23,14 +25,13 @@ if "url" not in st.session_state:
 # -------------------------------
 # 🔹 UI
 # -------------------------------
-st.set_page_config(page_title="Mini Browser", layout="wide")
-
-st.title("🌐 Mini Browser (Simulated)")
+st.set_page_config(page_title="Mini Browser (Stealth)", layout="wide")
+st.title("🌐 Mini Browser (Advanced Stealth)")
 
 col1, col2 = st.columns([1, 2])
 
 # -------------------------------
-# 🔹 LEFT PANEL (Controls)
+# 🔹 Controls
 # -------------------------------
 with col1:
     st.subheader("Controls")
@@ -41,17 +42,33 @@ with col1:
         st.session_state.url = url_input
         st.session_state.browser_started = True
 
-    click_selector = st.text_input("CSS Selector to Click (optional)")
-    fill_selector = st.text_input("CSS Selector to Fill (optional)")
-    fill_value = st.text_input("Value to Fill")
+    click_selector = st.text_input("CSS Selector to Click")
+    fill_selector = st.text_input("CSS Selector to Fill")
+    fill_value = st.text_input("Value")
 
     action = st.selectbox("Action", ["None", "Click", "Fill"])
 
     run_action = st.button("Run Action")
-    refresh = st.button("Refresh Page")
+    refresh = st.button("Refresh")
 
 # -------------------------------
-# 🔹 RIGHT PANEL (Browser View)
+# 🔹 Human Simulation
+# -------------------------------
+def simulate_human(page):
+    try:
+        page.mouse.move(random.randint(100, 400), random.randint(100, 400))
+        time.sleep(random.uniform(0.5, 1.5))
+
+        page.mouse.move(random.randint(400, 800), random.randint(200, 600))
+        time.sleep(random.uniform(0.5, 1.5))
+
+        page.mouse.wheel(0, random.randint(200, 800))
+        time.sleep(random.uniform(1, 2))
+    except:
+        pass
+
+# -------------------------------
+# 🔹 Browser View
 # -------------------------------
 with col2:
     st.subheader("Browser View")
@@ -59,52 +76,66 @@ with col2:
     if st.session_state.browser_started and st.session_state.url:
         try:
             with sync_playwright() as p:
+
                 browser = p.chromium.launch(
-                    headless=True,
+                    headless=True,  # 🔴 forced in Streamlit Cloud
                     args=[
                         "--no-sandbox",
                         "--disable-dev-shm-usage",
-                        "--disable-blink-features=AutomationControlled"
+                        "--disable-blink-features=AutomationControlled",
+                        "--disable-infobars"
                     ]
                 )
 
-                # 🔥 Use context (important for stealth)
                 context = browser.new_context(
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                    user_agent=random.choice([
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/119 Safari/537.36"
+                    ]),
                     viewport={"width": 1280, "height": 800},
-                    locale="en-US"
+                    locale="en-US",
+                    java_script_enabled=True
                 )
 
                 page = context.new_page()
 
+                # 🔥 Apply stealth
+                stealth_sync(page)
+
                 # 🔥 Extra headers
                 page.set_extra_http_headers({
-                    "Accept-Language": "en-US,en;q=0.9"
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Upgrade-Insecure-Requests": "1"
                 })
 
-                # 🔥 Go to page with wait
+                # -------------------------------
+                # 🔹 Open page
+                # -------------------------------
                 page.goto(st.session_state.url, timeout=60000)
-                page.wait_for_load_state("domcontentloaded")
+                page.wait_for_load_state("networkidle")
 
-                time.sleep(2)  # mimic human delay
+                time.sleep(random.uniform(2, 4))
+                simulate_human(page)
 
                 # -------------------------------
-                # 🔹 Perform action
+                # 🔹 Perform actions
                 # -------------------------------
                 if run_action:
                     if action == "Click" and click_selector:
-                        page.wait_for_selector(click_selector, timeout=5000)
+                        page.wait_for_selector(click_selector, timeout=8000)
+                        simulate_human(page)
                         page.click(click_selector)
-                        time.sleep(2)
+                        time.sleep(random.uniform(1, 3))
 
                     elif action == "Fill" and fill_selector:
-                        page.wait_for_selector(fill_selector, timeout=5000)
+                        page.wait_for_selector(fill_selector, timeout=8000)
                         page.fill(fill_selector, fill_value)
-                        time.sleep(1)
+                        time.sleep(random.uniform(1, 2))
 
                 if refresh:
                     page.reload()
-                    time.sleep(2)
+                    page.wait_for_load_state("networkidle")
+                    simulate_human(page)
 
                 # -------------------------------
                 # 🔹 Screenshot
@@ -124,4 +155,4 @@ with col2:
             st.code(str(e))
 
     else:
-        st.info("Enter a URL and click 'Open Page'")
+        st.info("Enter a URL and click Open Page")
