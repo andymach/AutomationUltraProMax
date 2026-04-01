@@ -1,96 +1,72 @@
 import streamlit as st
 import requests
-import time
 
 st.set_page_config(layout="wide")
-st.title("🌐 Browser Streaming (Fixed)")
+st.title("🌐 Hybrid Browser Viewer (Best Approach)")
 
+# 🔑 Your Browserless API key
 TOKEN = "2UG0iMlUmoTajm29c75d6592cf197f95ae42f88972d3c03a5"
 
+# -------------------------------
+# 🔹 INPUT
+# -------------------------------
 url = st.text_input(
     "Enter URL",
     value="https://www.bajajfinserv.in/tnc-b2c-urban"
 )
 
-start = st.button("Start Streaming")
-
-placeholder = st.empty()
-debug_box = st.expander("🔍 Debug Info")
-
+load_btn = st.button("Load Page")
 
 # -------------------------------
-# 🔹 Screenshot API
+# 🔹 FUNCTION: FETCH HTML
 # -------------------------------
-def get_screenshot(scroll_y=0):
-    api_url = f"https://production-sfo.browserless.io/screenshot?token={TOKEN}"
+def fetch_html(target_url):
+    try:
+        api_url = f"https://production-sfo.browserless.io/unblock?token={TOKEN}"
 
-    payload = {
-        "url": url,
-        "viewport": {"width": 1280, "height": 800},
-        "gotoOptions": {
-            "waitUntil": "domcontentloaded",
-            "timeout": 60000
-        },
-        "scripts": [
-            f"window.scrollTo(0, {scroll_y})"
-        ]
-    }
+        payload = {
+            "url": target_url,
+            "gotoOptions": {
+                "waitUntil": "networkidle",
+                "timeout": 60000
+            }
+        }
 
-    res = requests.post(api_url, json=payload)
+        res = requests.post(api_url, json=payload)
 
-    if res.status_code == 200 and "image" in res.headers.get("content-type", ""):
-        return res.content
+        if res.status_code == 200:
+            return res.text
 
-    # Debug safely
-    with debug_box:
-        st.write(f"❌ Screenshot failed: {res.status_code}")
+        st.error(f"❌ Request failed: {res.status_code}")
         st.code(res.text[:500])
+        return None
 
-    return None
-
-
-# -------------------------------
-# 🔹 HTML fallback (unblock)
-# -------------------------------
-def get_html():
-    api_url = f"https://production-sfo.browserless.io/unblock?token={TOKEN}"
-
-    res = requests.post(api_url, json={"url": url})
-
-    if res.status_code == 200:
-        return res.text
-
-    return None
+    except Exception as e:
+        st.error("🔥 Exception occurred")
+        st.code(str(e))
+        return None
 
 
 # -------------------------------
-# 🔹 MAIN FLOW
+# 🔹 MAIN LOGIC
 # -------------------------------
-if start:
-    scroll = 0
-    success = False
+if load_btn:
+    if not url:
+        st.warning("Please enter a URL")
+    else:
+        st.info("⏳ Loading via Browserless (unblock mode)...")
 
-    for i in range(10):  # limit frames
-        img = get_screenshot(scroll)
-
-        if img:
-            placeholder.image(img, use_container_width=True)
-            success = True
-            scroll += 400
-            time.sleep(1)
-        else:
-            break
-
-    # 🔁 If screenshot failed → fallback to HTML
-    if not success:
-        st.warning("⚠️ Falling back to HTML view")
-
-        html = get_html()
+        html = fetch_html(url)
 
         if html:
-            st.components.v1.html(html, height=800, scrolling=True)
+            st.success("✅ Page loaded")
+
+            # 🔹 Render HTML inside Streamlit
+            st.components.v1.html(
+                html,
+                height=800,
+                scrolling=True
+            )
+
         else:
             st.error("❌ Could not load page")
-
-    else:
-        st.success("✅ Streaming finished")
