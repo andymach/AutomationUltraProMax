@@ -1,67 +1,57 @@
 import streamlit as st
+import requests
 import time
-from playwright.sync_api import sync_playwright
+import base64
 
-st.set_page_config(page_title="Remote Browser Scroll Viewer", layout="wide")
+st.set_page_config(layout="wide")
+st.title("🌐 Browser Streaming (via Browserless API)")
 
-st.title("🌐 Remote Browser Scroll Viewer")
+TOKEN = "2UG0iMlUmoTajm29c75d6592cf197f95ae42f88972d3c03a5"
 
-url = st.text_input("Enter URL", placeholder="https://example.com")
+url = st.text_input("Enter URL", value="https://www.bajajfinserv.in/tnc-b2c-urban")
 
-if st.button("Run"):
-    if not url:
-        st.warning("Please enter a URL")
-    else:
+start = st.button("Start Streaming")
+
+placeholder = st.empty()
+
+def get_screenshot(scroll_y=0):
+    api_url = f"https://production-sfo.browserless.io/screenshot?token={TOKEN}"
+
+    payload = {
+        "url": url,
+        "options": {
+            "fullPage": False
+        },
+        "gotoOptions": {
+            "waitUntil": "domcontentloaded",
+            "timeout": 60000
+        },
+        "viewport": {
+            "width": 1280,
+            "height": 800
+        },
+        "scripts": [
+            f"window.scrollTo(0, {scroll_y})"
+        ]
+    }
+
+    res = requests.post(api_url, json=payload)
+
+    return res.content
+
+
+if start:
+    scroll = 0
+
+    while True:
         try:
-            placeholder = st.empty()
+            img = get_screenshot(scroll)
 
-            with sync_playwright() as p:
-                # 🔹 Connect to Browserless
-                browser = p.chromium.connect_over_cdp(
-                    "wss://chrome.browserless.io?token=2UG0iMlUmoTajm29c75d6592cf197f95ae42f88972d3c03a5"
-                )
+            placeholder.image(img, use_container_width=True)
 
-                # 🔹 Create context with viewport (fixes NoneType issue)
-                context = browser.new_context(
-                    viewport={"width": 1280, "height": 800}
-                )
-
-                page = context.new_page()
-
-                # 🔹 Open page
-                page.goto(url, timeout=60000)
-                page.wait_for_load_state("domcontentloaded")
-
-                # 🔹 Give time to fully render
-                page.wait_for_timeout(2000)
-
-                # 🔹 Get dimensions safely
-                total_height = page.evaluate("document.body.scrollHeight")
-                viewport_height = page.evaluate("window.innerHeight")
-
-                scroll_position = 0
-
-                # 🔹 Scroll loop
-                while scroll_position < total_height:
-                    # Scroll
-                    page.evaluate(f"window.scrollTo(0, {scroll_position})")
-
-                    # Take screenshot (viewport only)
-                    screenshot = page.screenshot(full_page=False)
-
-                    # Show frame
-                    placeholder.image(screenshot, use_container_width=True)
-
-                    # Move scroll
-                    scroll_position += viewport_height // 2
-
-                    # 1 frame per second
-                    time.sleep(1)
-
-                browser.close()
-
-            st.success("✅ Finished scrolling")
+            scroll += 400  # scroll step
+            time.sleep(1)
 
         except Exception as e:
-            st.error("❌ Error occurred")
-            st.code(str(e))
+            st.error(str(e))
+            break
