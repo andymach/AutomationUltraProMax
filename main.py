@@ -3,61 +3,95 @@ import os
 from playwright.sync_api import sync_playwright
 
 # -------------------------------
-# 🔹 Install Playwright browser (only once)
+# 🔹 Ensure Playwright browser is installed
 # -------------------------------
-PLAYWRIGHT_BROWSERS_PATH = "/home/appuser/.cache/ms-playwright"
+PLAYWRIGHT_PATH = "/home/appuser/.cache/ms-playwright"
 
-if not os.path.exists(PLAYWRIGHT_BROWSERS_PATH):
+if not os.path.exists(PLAYWRIGHT_PATH):
     os.system("playwright install chromium")
 
 # -------------------------------
-# 🔹 Streamlit UI
+# 🔹 Session State Setup
 # -------------------------------
-st.set_page_config(page_title="Browser Automation", layout="centered")
+if "browser_started" not in st.session_state:
+    st.session_state.browser_started = False
 
-st.title("🌐 Streamlit Browser Automation")
-st.write("Enter a URL and fetch page details using Playwright")
-
-url = st.text_input("🔗 Enter Website URL", placeholder="https://example.com")
+if "url" not in st.session_state:
+    st.session_state.url = ""
 
 # -------------------------------
-# 🔹 Run Automation
+# 🔹 UI
 # -------------------------------
-if st.button("🚀 Run"):
-    if not url:
-        st.warning("Please enter a valid URL")
-    else:
+st.set_page_config(page_title="Mini Browser", layout="wide")
+
+st.title("🌐 Mini Browser (Simulated)")
+
+col1, col2 = st.columns([1, 2])
+
+# -------------------------------
+# 🔹 LEFT PANEL (Controls)
+# -------------------------------
+with col1:
+    st.subheader("Controls")
+
+    url_input = st.text_input("Enter URL", value=st.session_state.url)
+
+    if st.button("Open Page"):
+        st.session_state.url = url_input
+        st.session_state.browser_started = True
+
+    click_selector = st.text_input("CSS Selector to Click (optional)")
+    fill_selector = st.text_input("CSS Selector to Fill (optional)")
+    fill_value = st.text_input("Value to Fill")
+
+    action = st.selectbox("Action", ["None", "Click", "Fill"])
+
+    run_action = st.button("Run Action")
+
+    refresh = st.button("Refresh Page")
+
+# -------------------------------
+# 🔹 RIGHT PANEL (Browser View)
+# -------------------------------
+with col2:
+    st.subheader("Browser View")
+
+    if st.session_state.browser_started and st.session_state.url:
         try:
-            with st.spinner("Launching browser..."):
-                with sync_playwright() as p:
-                    browser = p.chromium.launch(
-                        headless=True,
-                        args=["--no-sandbox", "--disable-dev-shm-usage"]
-                    )
+            with sync_playwright() as p:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-dev-shm-usage"]
+                )
 
-                    page = browser.new_page()
-                    page.goto(url, timeout=60000)
+                page = browser.new_page()
+                page.goto(st.session_state.url, timeout=60000)
 
-                    # Extract data
-                    title = page.title()
+                # Perform action
+                if run_action:
+                    if action == "Click" and click_selector:
+                        page.click(click_selector)
 
-                    # Take screenshot
-                    screenshot_path = "screenshot.png"
-                    page.screenshot(path=screenshot_path, full_page=True)
+                    elif action == "Fill" and fill_selector:
+                        page.fill(fill_selector, fill_value)
 
-                    browser.close()
+                if refresh:
+                    page.reload()
 
-            # -------------------------------
-            # 🔹 Display Results
-            # -------------------------------
-            st.success("✅ Done!")
+                # Take screenshot
+                screenshot_path = "page.png"
+                page.screenshot(path=screenshot_path, full_page=True)
 
-            st.subheader("📄 Page Title")
-            st.write(title)
+                title = page.title()
 
-            st.subheader("📸 Screenshot")
-            st.image(screenshot_path)
+                browser.close()
+
+            st.success(f"Loaded: {title}")
+            st.image(screenshot_path, use_container_width=True)
 
         except Exception as e:
-            st.error("❌ Something went wrong")
+            st.error("Error loading page")
             st.code(str(e))
+
+    else:
+        st.info("Enter a URL and click 'Open Page'")
