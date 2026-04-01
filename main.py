@@ -3,7 +3,6 @@ import os
 import time
 import random
 from playwright.sync_api import sync_playwright
-from playwright_stealth import stealth_sync
 
 # -------------------------------
 # 🔹 Install Chromium if needed
@@ -25,8 +24,8 @@ if "url" not in st.session_state:
 # -------------------------------
 # 🔹 UI
 # -------------------------------
-st.set_page_config(page_title="Mini Browser (Stealth)", layout="wide")
-st.title("🌐 Mini Browser (Advanced Stealth)")
+st.set_page_config(page_title="Mini Browser (Stealth Fixed)", layout="wide")
+st.title("🌐 Mini Browser (Stable Version)")
 
 col1, col2 = st.columns([1, 2])
 
@@ -78,7 +77,7 @@ with col2:
             with sync_playwright() as p:
 
                 browser = p.chromium.launch(
-                    headless=True,  # 🔴 forced in Streamlit Cloud
+                    headless=True,  # 🔴 MUST be True on Streamlit Cloud
                     args=[
                         "--no-sandbox",
                         "--disable-dev-shm-usage",
@@ -99,17 +98,37 @@ with col2:
 
                 page = context.new_page()
 
-                # 🔥 Apply stealth
-                stealth_sync(page)
+                # -------------------------------
+                # 🔥 Manual Stealth Injection
+                # -------------------------------
+                page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
 
-                # 🔥 Extra headers
+                window.chrome = {
+                    runtime: {}
+                };
+
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en']
+                });
+
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5]
+                });
+                """)
+
+                # -------------------------------
+                # 🔹 Headers
+                # -------------------------------
                 page.set_extra_http_headers({
                     "Accept-Language": "en-US,en;q=0.9",
                     "Upgrade-Insecure-Requests": "1"
                 })
 
                 # -------------------------------
-                # 🔹 Open page
+                # 🔹 Open Page
                 # -------------------------------
                 page.goto(st.session_state.url, timeout=60000)
                 page.wait_for_load_state("networkidle")
@@ -118,7 +137,7 @@ with col2:
                 simulate_human(page)
 
                 # -------------------------------
-                # 🔹 Perform actions
+                # 🔹 Actions
                 # -------------------------------
                 if run_action:
                     if action == "Click" and click_selector:
