@@ -15,7 +15,7 @@ if st.button("Run"):
 
             with sync_playwright() as p:
                 browser = p.chromium.connect_over_cdp(
-                    "wss://chrome.browserless.io?token=YOUR_API_KEY"
+                    "wss://chrome.browserless.io?token=2UG0iMlUmoTajm29c75d6592cf197f95ae42f88972d3c03a5"
                 )
 
                 context = browser.contexts[0] if browser.contexts else browser.new_context()
