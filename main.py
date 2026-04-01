@@ -3,10 +3,9 @@ import requests
 import time
 
 st.set_page_config(layout="wide")
-st.title("🌐 Browser Streaming (Robust Version)")
+st.title("🌐 Browser Streaming (Fixed)")
 
-# 🔑 Put your Browserless API key here
-TOKEN = "YOUR_API_KEY"
+TOKEN = "2UG0iMlUmoTajm29c75d6592cf197f95ae42f88972d3c03a5"
 
 url = st.text_input(
     "Enter URL",
@@ -18,70 +17,80 @@ start = st.button("Start Streaming")
 placeholder = st.empty()
 debug_box = st.expander("🔍 Debug Info")
 
+
 # -------------------------------
-# 🔹 API CALL FUNCTION
+# 🔹 Screenshot API
 # -------------------------------
 def get_screenshot(scroll_y=0):
-    try:
-        api_url = f"https://production-sfo.browserless.io/screenshot?token={TOKEN}"
+    api_url = f"https://production-sfo.browserless.io/screenshot?token={TOKEN}"
 
-        payload = {
-            "url": url,
-            "viewport": {"width": 1280, "height": 800},
-            "gotoOptions": {
-                "waitUntil": "domcontentloaded",
-                "timeout": 60000
-            },
-            "scripts": [
-                f"window.scrollTo(0, {scroll_y})"
-            ]
-        }
+    payload = {
+        "url": url,
+        "viewport": {"width": 1280, "height": 800},
+        "gotoOptions": {
+            "waitUntil": "domcontentloaded",
+            "timeout": 60000
+        },
+        "scripts": [
+            f"window.scrollTo(0, {scroll_y})"
+        ]
+    }
 
-        res = requests.post(api_url, json=payload)
+    res = requests.post(api_url, json=payload)
 
-        # ✅ If valid image → return
-        if res.status_code == 200 and "image" in res.headers.get("content-type", ""):
-            return res.content
+    if res.status_code == 200 and "image" in res.headers.get("content-type", ""):
+        return res.content
 
-        # 🔁 Fallback to UNBLOCK
-        debug_box.write("⚠️ Switching to /unblock...")
+    # Debug safely
+    with debug_box:
+        st.write(f"❌ Screenshot failed: {res.status_code}")
+        st.code(res.text[:500])
 
-        unblock_url = f"https://production-sfo.browserless.io/unblock?token={TOKEN}"
-
-        res2 = requests.post(unblock_url, json={"url": url})
-
-        if res2.status_code == 200 and "image" in res2.headers.get("content-type", ""):
-            return res2.content
-
-        # ❌ Still failed → show debug
-        debug_box.write("❌ Not an image response")
-        debug_box.write("Status:", res2.status_code)
-        debug_box.code(res2.text[:1000])
-
-        return None
-
-    except Exception as e:
-        debug_box.write("🔥 Exception occurred")
-        debug_box.code(str(e))
-        return None
+    return None
 
 
 # -------------------------------
-# 🔹 STREAMING LOOP
+# 🔹 HTML fallback (unblock)
+# -------------------------------
+def get_html():
+    api_url = f"https://production-sfo.browserless.io/unblock?token={TOKEN}"
+
+    res = requests.post(api_url, json={"url": url})
+
+    if res.status_code == 200:
+        return res.text
+
+    return None
+
+
+# -------------------------------
+# 🔹 MAIN FLOW
 # -------------------------------
 if start:
     scroll = 0
+    success = False
 
-    for i in range(20):  # limit frames (avoid infinite loop)
+    for i in range(10):  # limit frames
         img = get_screenshot(scroll)
 
         if img:
             placeholder.image(img, use_container_width=True)
+            success = True
+            scroll += 400
+            time.sleep(1)
         else:
-            st.error("Stopping due to invalid response")
             break
 
-        scroll += 400
-        time.sleep(1)
+    # 🔁 If screenshot failed → fallback to HTML
+    if not success:
+        st.warning("⚠️ Falling back to HTML view")
 
-    st.success("✅ Streaming finished")
+        html = get_html()
+
+        if html:
+            st.components.v1.html(html, height=800, scrolling=True)
+        else:
+            st.error("❌ Could not load page")
+
+    else:
+        st.success("✅ Streaming finished")
