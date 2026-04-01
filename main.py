@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import time
 from playwright.sync_api import sync_playwright
 
 # -------------------------------
@@ -47,7 +48,6 @@ with col1:
     action = st.selectbox("Action", ["None", "Click", "Fill"])
 
     run_action = st.button("Run Action")
-
     refresh = st.button("Refresh Page")
 
 # -------------------------------
@@ -61,24 +61,54 @@ with col2:
             with sync_playwright() as p:
                 browser = p.chromium.launch(
                     headless=True,
-                    args=["--no-sandbox", "--disable-dev-shm-usage"]
+                    args=[
+                        "--no-sandbox",
+                        "--disable-dev-shm-usage",
+                        "--disable-blink-features=AutomationControlled"
+                    ]
                 )
 
-                page = browser.new_page()
-                page.goto(st.session_state.url, timeout=60000)
+                # 🔥 Use context (important for stealth)
+                context = browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36",
+                    viewport={"width": 1280, "height": 800},
+                    locale="en-US"
+                )
 
-                # Perform action
+                page = context.new_page()
+
+                # 🔥 Extra headers
+                page.set_extra_http_headers({
+                    "Accept-Language": "en-US,en;q=0.9"
+                })
+
+                # 🔥 Go to page with wait
+                page.goto(st.session_state.url, timeout=60000)
+                page.wait_for_load_state("domcontentloaded")
+
+                time.sleep(2)  # mimic human delay
+
+                # -------------------------------
+                # 🔹 Perform action
+                # -------------------------------
                 if run_action:
                     if action == "Click" and click_selector:
+                        page.wait_for_selector(click_selector, timeout=5000)
                         page.click(click_selector)
+                        time.sleep(2)
 
                     elif action == "Fill" and fill_selector:
+                        page.wait_for_selector(fill_selector, timeout=5000)
                         page.fill(fill_selector, fill_value)
+                        time.sleep(1)
 
                 if refresh:
                     page.reload()
+                    time.sleep(2)
 
-                # Take screenshot
+                # -------------------------------
+                # 🔹 Screenshot
+                # -------------------------------
                 screenshot_path = "page.png"
                 page.screenshot(path=screenshot_path, full_page=True)
 
